@@ -1,0 +1,131 @@
+using Microsoft.SqlServer.Server;
+using System;
+using System.Collections;
+using System.Data.SqlTypes;
+
+public partial class Database
+{
+        // Metadata about Farey dataset row
+        private class Farey
+        {
+                public SqlInt64 Numerator;
+                public SqlInt64 Denominator;
+                public SqlInt32 Iterations;
+
+                // Take three parameters and turn them into a Farey class
+                public Farey(SqlInt64 _Numerator, SqlInt64 _Denominator, SqlInt32 _Iterations)
+                {
+                        Numerator = _Numerator;
+                        Denominator = _Denominator;
+                        Iterations = _Iterations;
+                }
+        }
+
+        // Push Farey to the dataset
+        public static void PushFarey(object _obj, out SqlInt64 _Numerator, out SqlInt64 _Denominator, out SqlInt32 _Iterations)
+        {
+                Farey Result = (Farey)_obj;
+
+                _Numerator = Result.Numerator;
+                _Denominator = Result.Denominator;
+                _Iterations = Result.Iterations;
+        }
+
+        [Microsoft.SqlServer.Server.SqlFunction(FillRowMethodName = "PushFarey", IsDeterministic = true, IsPrecise = true, SystemDataAccess = SystemDataAccessKind.None, TableDefinition = "Numerator BIGINT NULL, Denominator BIGINT NULL, Iterations INT NULL")]
+ 
+        public static IEnumerable Approximation(SqlDouble _Value, SqlInt64 _MaxDenominator)
+        {
+                // Initialize the calculations dataset
+                ArrayList Fareys = new ArrayList();
+
+                if (_Value.IsNull)
+                {
+                        return Fareys;
+                }
+                else if (_MaxDenominator.IsNull)
+                {
+                        _MaxDenominator = 4611686018427387903;
+                }
+                else if (_MaxDenominator < 2)
+                {
+                        return Fareys;
+                }
+                else if (_MaxDenominator > 4611686018427387903)
+                {
+                        _MaxDenominator = 4611686018427387903;
+                }
+
+                // Meta data
+                double Value = _Value.Value;
+                long Denominator = _MaxDenominator.Value;
+
+                int s = Math.Sign(Value);
+                double i = Math.Floor(Math.Abs(Value));
+
+                // Rebase value
+                Value = Math.Abs(Value) - i;
+
+                if (Value == 0)
+                {
+                        Fareys.Add(new Farey(0, 1, 0));
+
+                        return Fareys;
+                }
+                else if (Value == 1)
+                {
+                        Fareys.Add(new Farey(1, 1, 0));
+
+                        return Fareys;
+                }
+
+                // Declare local helper variables
+                double a = 0;
+                double b = 1;
+                double c = 1;
+                double d = 1;
+
+                double p;
+                double q;
+                double bestp = a + c;
+                double bestq = b + d;
+
+                int iteration = 0;
+
+                double z;
+
+                while (b + d <= Denominator)
+                { 
+                        p = a + c;
+                        q = b + d;
+                        iteration += 1;
+
+                        if (Math.Abs(Value - p / q) < Math.Abs(Value - bestp / bestq))
+                        {
+                                bestp = p;
+                                bestq = q;
+                        }
+
+                        z = Value * q;
+
+                        if (z == p)
+                        {
+                                break;
+                        }
+
+                        if (z < p)
+                        {
+                                c = p;
+                                d = q;
+                        }
+                        else
+                        {
+                                a = p;
+                                b = q;
+                        }
+                }
+
+                Fareys.Add(new Farey((SqlInt64)(s * bestp + s * bestq * i), (SqlInt64)bestq, iteration));
+
+                return Fareys;
+        }
+}
